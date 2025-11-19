@@ -612,51 +612,70 @@ This behavior is technically correct for walking up slopes but completely breaks
 
 ### Momentum Mod: Predictive Categorization
 
-Momentum Mod solves these issues through predictive ground detection. Rather than only checking the current position, the function simulates where the player will be on the next frame and makes categorization decisions based on that prediction. This forward-looking approach prevents premature ground-snapping while maintaining proper ground detection when players actually intend to land.
+Momentum Mod solves these issues through predictive ground detection. Rather than only checking the current position, the function simulates the physics of the *next* frame to determine if the player will actually remain on the ground.
 
-The enhanced logic includes several conditions and checks. First, it determines if the player is currently holding jump with autobhop enabled, indicating bhop intent. Second, it traces ahead one full frame based on current velocity to predict the next position. Third, it examines whether this predicted position would be in the air or would contact ground. Fourth, it checks if an edge bug situation exists where the player would miss the ground entirely next frame.
+The enhanced logic is more sophisticated than a simple position check. It performs the following steps:
+1.  **Gravity Prediction:** It calculates the velocity for the next frame by applying half of the frame's gravity. This ensures vertical momentum is accurately represented.
+2.  **Impact Prediction:** It traces ahead to see where the player would land.
+3.  **Slide Simulation:** If an impact is detected, it doesn't stop there. It simulates the collision response (`ClipVelocity`) to determine how the player would slide along that surface.
+4.  **Edge Check:** It traces downward from the *end* of that simulated slide. If the player slides off the surface within the same tick, the engine refuses to ground them.
 
-Here's the conceptual implementation:
+Here is the conceptual implementation:
 
 ```cpp
 void CMomentumGameMovement::CategorizePosition(void)
 {
-    // Get player's current position and downward velocity
+    // Standard vanilla checks first
     Vector point = mv->GetAbsOrigin();
-    Vector traceStart = point;
-    
-    // Trace downward by 2 units to check for ground
     Vector traceEnd = point;
-    traceEnd.z -= 2.0f;
+    traceEnd.z -= sv_considered_on_ground.GetFloat(); // Typically 2.0f
     
     trace_t pm;
-    TracePlayerBBox(traceStart, traceEnd, PlayerSolidMask(), 
-                    COLLISION_GROUP_PLAYER_MOVEMENT, pm);
+    TracePlayerBBox(point, traceEnd, PlayerSolidMask(), COLLISION_GROUP_PLAYER_MOVEMENT, pm);
     
-    // Standard vanilla checks
+    // Initial check: did we hit a flat-enough surface?
     bool bGrounded = pm.DidHit() && pm.plane.normal.z >= 0.7f;
-    
-    // Momentum Mod: Edge fix logic
-    if (sv_edge_fix.GetBool() && 
+
+    // Momentum Mod: Predictive Edge/Slope Logic
+    // We verify if we should ACTUALLY be grounded by simulating the next tick.
+    // We skip this check if the player is auto-bhopping and holding jump (intent to jump).
+    if (sv_edge_fix.GetBool() && bGrounded && 
         !(m_pPlayer->HasAutoBhop() && (mv->m_nButtons & IN_JUMP)))
     {
-        // Predict where player will be next frame
-        Vector predictedPos;
-        VectorMA(point, gpGlobals->frametime, mv->m_vecVelocity, predictedPos);
-        
-        // Trace downward from predicted position
+        // 1. Calculate velocity for the next tick
+        Vector vecNextVelocity = mv->m_vecVelocity;
+        // Apply half-gravity (leapfrog integration) for accurate vertical prediction
+        vecNextVelocity.z -= player->GetGravity() * GetCurrentGravity() * 0.5f * gpGlobals->frametime;
+
+        // 2. Predict where the player falls to next frame
+        Vector endFall;
+        VectorMA(mv->GetAbsOrigin(), gpGlobals->frametime, vecNextVelocity, endFall);
         trace_t pmFall;
-        TracePlayerBBox(predictedPos, 
-                       predictedPos + Vector(0, 0, -2.0f),
-                       PlayerSolidMask(),
-                       COLLISION_GROUP_PLAYER_MOVEMENT, 
-                       pmFall);
-        
-        // If we would miss the ground next frame, don't ground us now
-        // This enables edge bugs
+        TracePlayerBBox(mv->GetAbsOrigin(), endFall, PlayerSolidMask(), COLLISION_GROUP_PLAYER_MOVEMENT, pmFall);
+
         if (!pmFall.DidHit())
         {
+            // We would miss the ground entirely next frame.
             bGrounded = false;
+        }
+        else
+        {
+            // 3. Simulate the slide collision
+            // We hit the ground, but will we slide off it immediately?
+            ClipVelocity(vecNextVelocity, pmFall.plane.normal, vecNextVelocity, 1.0f);
+
+            // Simulate the sliding movement using the full frametime
+            Vector endSlide;
+            VectorMA(pmFall.endpos, gpGlobals->frametime, vecNextVelocity, endSlide);
+
+            // 4. Check ground again at the end of the slide
+            trace_t pmGround;
+            TracePlayerBBox(endSlide, endSlide - Vector(0,0,2.0f), ..., pmGround);
+
+            // If the slide carried us off the surface, it's an edge bug.
+            // Do not snap to ground.
+            if (!pmGround.DidHit())
+                bGrounded = false; 
         }
     }
     
@@ -685,7 +704,7 @@ void CMomentumGameMovement::CategorizePosition(void)
         }
     }
     
-    // Apply the ground state
+    // Apply the final ground state
     if (bGrounded)
         SetGroundEntity(&pm);
     else
@@ -693,13 +712,13 @@ void CMomentumGameMovement::CategorizePosition(void)
 }
 ```
 
-This predictive approach eliminates the premature ground-snapping that plagues vanilla movement while maintaining proper ground detection for normal gameplay. Players can maintain momentum through slope transitions and successfully execute edge bugs without fighting the physics system.
+This predictive approach eliminates the premature ground-snapping that plagues vanilla movement. By simulating the collision response (the slide) rather than just the impact, the engine correctly identifies "glancing blows" where the player touches an edge but has enough momentum to slide off it immediately.
 
 ### Edge Bug Mechanics
 
-Edge bugs represent an advanced technique where players catch the very edge of a surface, momentarily contacting it without being fully grounded. In vanilla Source, this requires pixel-perfect positioning and timing due to aggressive ground detection. With Momentum's edge fix, the technique becomes more consistent because the prediction system recognizes when the player would fall off the edge next frame and avoids grounding them.
+Edge bugs represent an advanced technique where players catch the very edge of a surface, momentarily contacting it without being fully grounded. In vanilla Source, this requires pixel-perfect positioning and timing due to aggressive ground detection.
 
-The edge bug is valuable in both surf and bhop gameplay. In surfing, it allows players to catch ramp edges at high speeds without losing momentum to friction. In bunnyhopping, it provides an additional way to maintain speed through difficult geometry. The technique still requires skill to execute but no longer feels random or inconsistent.
+The code above reveals why Momentum's implementation makes this consistent. In vanilla, if `pm.DidHit()` is true, you stop. In Momentum, the engine asks: "If we hit this edge, where does our momentum take us?" If the answer is "off the ledge," the engine ignores the collision entirely. This allows players to slide off edges at high speeds without friction ever applying, converting a frame-perfect exploit into a reliable movement mechanic.
 
 ---
 
@@ -742,7 +761,7 @@ void CMomentumGameMovement::StepMove(Vector &vecDestination, trace_t &trace)
     TryPlayerMove(&vecEndPos, &trace);
     
     // Check if the slide move resulted in significant upward velocity
-    // NON_JUMP_VELOCITY is approximately 140 units/sec
+    // NON_JUMP_VELOCITY is different units/sec depending on the game/mode
     if (mv->m_vecVelocity.z > NON_JUMP_VELOCITY)
     {
         // We are likely flying up a ramp or surfing
@@ -857,7 +876,7 @@ Momentum Mod's enhancements specifically target the randomness and inconsistency
 - Maintains proper ground detection for normal gameplay
 - Allows skilled players to use edge techniques without pixel-perfect positioning
 
-**sv_ramp_initial_retrace_length** (Default: 0.1 units)
+**sv_ramp_initial_retrace_length** (Default: 0.2 units)
 - Controls how far the retrace system backs the player out when stuck
 - Lower values minimize position correction but may not fully resolve stuck states
 - Higher values ensure freedom from geometry but may cause noticeable position shifts
@@ -913,8 +932,3 @@ For developers, this analysis demonstrates the importance of understanding syste
 For players, this knowledge provides insight into what happens beneath the surface during every frame of movement. Understanding why looking sideways produces acceleration, why gravity enables speed gain on ramps, and why certain slopes feel "sticky" transforms surfing from mysterious black magic into a comprehensible, masterable skill.
 
 The Source Engine's movement system has influenced game design for nearly two decades, spawning entire game modes, communities, and competitive scenes. Its continued relevance stems from the depth that emerges from relatively simple rules-depth that rewards mastery while remaining accessible to newcomers. Momentum Mod ensures this legacy continues with the reliability and polish that modern players expect.
-
-
-
-
-
