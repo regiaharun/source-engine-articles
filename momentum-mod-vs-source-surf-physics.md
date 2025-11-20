@@ -17,7 +17,7 @@ This document provides a comprehensive technical analysis of surfing mechanics i
 - Add links and citations
 
 **Source Code References**
-- [Source Engine 2018 Leak HL2/TF2 branch - gamemovement.cpp](https://github.com/followingthefasciaplane/source-engine-diff-check/blob/main/collection/gamemovement_2018_hl2.cpp)
+- [Source Engine SDK 2013 - gamemovement.cpp](https://github.com/ValveSoftware/source-sdk-2013/blob/master/src/game/shared/gamemovement.cpp)
 - [Momentum Mod - mom_gamemovement.cpp](https://github.com/momentum-mod/game/blob/develop/mp/src/game/shared/momentum/mom_gamemovement.cpp)
 
 **Visualization on CS:S**
